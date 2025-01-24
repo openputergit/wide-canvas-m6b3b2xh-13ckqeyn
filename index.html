@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Game Score Tracker</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Space Grotesk', sans-serif;
+            background-color: #e0e0e0;
+        }
+        .neu-brutal {
+            background: #ffffff;
+            border-radius: 20px;
+            box-shadow: 7px 7px 15px rgba(0, 0, 0, 0.2), -7px -7px 15px rgba(255, 255, 255, 0.7);
+            transition: all 0.2s ease;
+        }
+        .neu-brutal:hover {
+            transform: translate(-3px, -3px);
+            box-shadow: 10px 10px 20px rgba(0, 0, 0, 0.3), -10px -10px 20px rgba(255, 255, 255, 1);
+        }
+        .neu-button {
+            background: #ff90e8;
+            border-radius: 10px;
+            box-shadow: inset 5px 5px 10px rgba(0, 0, 0, 0.2), inset -5px -5px 10px rgba(255, 255, 255, 0.7);
+            transition: all 0.2s ease;
+        }
+        .neu-button:hover {
+            transform: translate(-2px, -2px);
+            box-shadow: 0px 0px 20px rgba(0, 0, 0, 0.5);
+        }
+        .loading {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 1000;
+        }
+        .player-suggestions {
+            position: absolute;
+            width: 100%;
+            background: white;
+            border: 1px solid black;
+            max-height: 200px;
+            overflow-y: auto;
+            z-index: 1000;
+        }
+        .suggestion-item {
+            padding: 8px;
+            cursor: pointer;
+        }
+        .suggestion-item:hover {
+            background: #ff90e8;
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+    <div class="loading neu-brutal p-4">
+        <div class="text-2xl">Loading...</div>
+    </div>
+
+    <div class="max-w-4xl mx-auto">
+        <h1 class="text-4xl font-bold mb-8">Game Score Tracker</h1>
+
+        <div class="neu-brutal p-6 mb-8">
+            <h2 class="text-2xl font-bold mb-4">New Match</h2>
+            <form id="scoreForm" class="space-y-4">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block mb-2">Game Type</label>
+                        <select id="gameType" class="w-full p-2 neu-brutal" required>
+                            <option value="FIFA">FIFA</option>
+                            <option value="Pickleball">Pickleball</option>
+                            <option value="Chess">Chess</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="block mb-2">Match Type</label>
+                        <select id="matchType" class="w-full p-2 neu-brutal" required>
+                            <option value="1v1">1v1</option>
+                            <option value="2v2">2v2</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="block mb-2">Location</label>
+                        <select id="location" class="w-full p-2 neu-brutal" required>
+                            <option value="SFOxZo">SFOxZo</option>
+                            <option value="GGNxZo">GGNxZo</option>
+                            <option value="WTFxZo">WTFxZo</option>
+                            <option value="BLRxZo">BLRxZo</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div id="playerInputs" class="space-y-4">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="relative">
+                            <label class="block mb-2">Team 1 Player(s)</label>
+                            <input type="text" id="team1Players" class="w-full p-2 neu-brutal" placeholder="Player names separated by comma" required>
+                            <div id="team1Suggestions" class="player-suggestions hidden"></div>
+                            <input type="number" id="team1Score" class="w-full p-2 mt-2 neu-brutal" placeholder="Score" required>
+                        </div>
+                        <div class="relative">
+                            <label class="block mb-2">Team 2 Player(s)</label>
+                            <input type="text" id="team2Players" class="w-full p-2 neu-brutal" placeholder="Player names separated by comma" required>
+                            <div id="team2Suggestions" class="player-suggestions hidden"></div>
+                            <input type="number" id="team2Score" class="w-full p-2 mt-2 neu-brutal" placeholder="Score" required>
+                        </div>
+                    </div>
+                </div>
+
+                <button type="submit" class="w-full p-3 neu-button font-bold">Save Match</button>
+            </form>
+        </div>
+
+        <div class="neu-brutal p-6">
+            <h2 class="text-2xl font-bold mb-4">Leaderboard</h2>
+            <div class="space-y-4">
+                <div class="flex space-x-4 mb-4">
+                    <button onclick="showLeaderboard('FIFA')" class="neu-button px-4 py-2">FIFA</button>
+                    <button onclick="showLeaderboard('Pickleball')" class="neu-button px-4 py-2">Pickleball</button>
+                    <button onclick="showLeaderboard('Chess')" class="neu-button px-4 py-2">Chess</button>
+                </div>
+                <div id="leaderboardContent" class="overflow-x-auto">
+                    <!-- Leaderboard will be populated here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const appSlug = 'game-tracker-123456';
+        let playersList = new Set();
+        let currentGame = 'FIFA';
+        
+        async function loadExistingPlayers() {
+            const loading = document.querySelector('.loading');
+            loading.style.display = 'block';
+            
+            try {
+                const response = await fetch('https://r0c8kgwocscg8gsokogwwsw4.zetaverse.one/mongodb', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': 'Bearer IhjtISImRdUQLJYTKZgVoB0cM773',
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        appSlug,
+                        action: 'read',
+                        collection: 'leaderboard'
+                    })
+                });
+
+                const data = await response.json();
+                if (data.success && data.result) {
+                    playersList = new Set(data.result.map(player => player.playerName));
+                }
+            } catch (error) {
+                console.error('Error loading players:', error);
+            } finally {
+                loading.style.display = 'none';
+            }
+        }
+
+        function setupPlayerSuggestions(inputId, suggestionsId) {
+            const input = document.getElementById(inputId);
+            const suggestions = document.getElementById(suggestionsId);
+
+            input.addEventListener('input', () => {
+                const currentValue = input.value;
+                const currentNames = currentValue.split(',');
+                const currentName = currentNames[currentNames.length - 1].trim().toLowerCase();
+
+                if (currentName.length > 0) {
+                    const matchingPlayers = Array.from(playersList)
+                        .filter(player => player.toLowerCase().includes(currentName));
+
+                    if (matchingPlayers.length > 0) {
+                        suggestions.innerHTML = matchingPlayers
+                            .map(player => `<div class="suggestion-item">${player}</div>`)
+                            .join('');
+                        suggestions.classList.remove('hidden');
+                    } else {
+                        suggestions.classList.add('hidden');
+                    }
+                } else {
+                    suggestions.classList.add('hidden');
+                }
+            });
+
+            suggestions.addEventListener('click', (e) => {
+                if (e.target.classList.contains('suggestion-item')) {
+                    const currentValues = input.value.split(',');
+                    currentValues[currentValues.length - 1] = e.target.textContent;
+                    input.value = currentValues.join(',');
+                    suggestions.classList.add('hidden');
+                }
+            });
+
+            document.addEventListener('click', (e) => {
+                if (!input.contains(e.target) && !suggestions.contains(e.target)) {
+                    suggestions.classList.add('hidden');
+                }
+            });
+        }
+
+        document.getElementById('gameType').addEventListener('change', function() {
+            const matchTypeSelect = document.getElementById('matchType');
+            if (this.value === 'Chess') {
+                matchTypeSelect.value = '1v1';
+                matchTypeSelect.disabled = true;
+            } else {
+                matchTypeSelect.disabled = false;
+            }
+        });
+
+        async function saveMatch(event) {
+            event.preventDefault();
+            const loading = document.querySelector('.loading');
+            loading.style.display = 'block';
+
+            const gameType = document.getElementById('gameType').value;
+            const matchType = document.getElementById('matchType').value;
+            const location = document.getElementById('location').value;
+            const team1Players = document.getElementById('team1Players').value.split(',').map(p => p.trim());
+            const team2Players = document.getElementById('team2Players').value.split(',').map(p => p.trim());
+            const team1Score = parseInt(document.getElementById('team1Score').value);
+            const team2Score = parseInt(document.getElementById('team2Score').value);
+
+            const winner = team1Score > team2Score ? team1Players : team2Players;
+            const loser = team1Score > team2Score ? team2Players : team1Players;
+
+            try {
+                // Update or create leaderboard entries for all players
+                const allPlayers = [...team1Players, ...team2Players];
+                for (const player of allPlayers) {
+                    const existing = await fetch('https://r0c8kgwocscg8gsokogwwsw4.zetaverse.one/mongodb', {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': 'Bearer IhjtISImRdUQLJYTKZgVoB0cM773',
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            appSlug,
+                            action: 'read',
+                            collection: 'leaderboard',
+                            conditions: {
+                                playerName: player,
+                                gameType
+                            }
+                        })
+                    }).then(r => r.json());
+
+                    const isWinner = winner.includes(player);
+                    if (existing.result && existing.result.length > 0) {
+                        // Update existing player
+                        await fetch('https://r0c8kgwocscg8gsokogwwsw4.zetaverse.one/mongodb', {
+                            method: 'POST',
+                            headers: {
+                                'Authorization': 'Bearer IhjtISImRdUQLJYTKZgVoB0cM773',
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                appSlug,
+                                action: 'update',
+                                collection: 'leaderboard',
+                                conditions: {
+                                    playerName: player,
+                                    gameType
+                                },
+                                data: {
+                                    $inc: {
+                                        wins: isWinner ? 1 : 0,
+                                        losses: isWinner ? 0 : 1,
+                                        totalGames: 1,
+                                        totalScore: isWinner ? team1Score : team2Score
+                                    }
+                                }
+                            })
+                        });
+                    } else {
+                        // Create new player entry
+                        await fetch('https://r0c8kgwocscg8gsokogwwsw4.zetaverse.one/mongodb', {
+                            method: 'POST',
+                            headers: {
+                                'Authorization': 'Bearer IhjtISImRdUQLJYTKZgVoB0cM773',
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                appSlug,
+                                action: 'create',
+                                collection: 'leaderboard',
+                                data: {
+                                    playerName: player,
+                                    gameType,
+                                    wins: isWinner ? 1 : 0,
+                                    losses: isWinner ? 0 : 1,
+                                    totalGames: 1,
+                                    totalScore: isWinner ? team1Score : team2Score
+                                }
+                            })
+                        });
+                    }
+                }
+
+                // Save match record
+                await fetch('https://r0c8kgwocscg8gsokogwwsw4.zetaverse.one/mongodb', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': 'Bearer IhjtISImRdUQLJYTKZgVoB0cM773',
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        appSlug,
+                        action: 'create',
+                        collection: 'matches',
+                        data: {
+                            gameType,
+                            matchType,
+                            location,
+                            team1Players,
+                            team2Players,
+                            team1Score,
+                            team2Score,
+                            timestamp: new Date().toISOString()
+                        }
+                    })
+                });
+
+                // Reset form and reload data
+                event.target.reset();
+                await loadExistingPlayers();
+                await showLeaderboard(gameType);
+            } catch (error) {
+                console.error('Error saving match:', error);
+            } finally {
+                loading.style.display = 'none';
+            }
+        }
+
+        async function showLeaderboard(gameType) {
+            currentGame = gameType;
+            const loading = document.querySelector('.loading');
+            loading.style.display = 'block';
+            
+            try {
+                const response = await fetch('https://r0c8kgwocscg8gsokogwwsw4.zetaverse.one/mongodb', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': 'Bearer IhjtISImRdUQLJYTKZgVoB0cM773',
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        appSlug,
+                        action: 'read',
+                        collection: 'leaderboard',
+                        conditions: { gameType }
+                    })
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    const leaderboard = document.getElementById('leaderboardContent');
+                    const players = data.result.sort((a, b) => b.wins - a.wins);
+                    
+                    leaderboard.innerHTML = `
+                        <table class="w-full">
+                            <thead>
+                                <tr class="border-b-2 border-black">
+                                    <th class="p-2 text-left">Player</th>
+                                    <th class="p-2 text-left">Wins</th>
+                                    <th class="p-2 text-left">Losses</th>
+                                    <th class="p-2 text-left">Total Games</th>
+                                    <th class="p-2 text-left">Total Score</th>
+                                    <th class="p-2 text-left">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${players.map(player => `
+                                    <tr class="border-b border-black">
+                                        <td class="p-2">${player.playerName}</td>
+                                        <td class="p-2">${player.wins}</td>
+                                        <td class="p-2">${player.losses}</td>
+                                        <td class="p-2">${player.totalGames}</td>
+                                        <td class="p-2">${player.totalScore}</td>
+                                        <td class="p-2">
+                                            <button onclick="deletePlayer('${player.playerName}')"><i class="bi bi-trash"></i></button>
+                                        </td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    `;
+                }
+            } catch (error) {
+                console.error('Error loading leaderboard:', error);
+            } finally {
+                loading.style.display = 'none';
+            }
+        }
+
+        async function deletePlayer(playerName) {
+            const password = prompt('Enter password to delete this record:');
+            if (password === 'skibidy') {
+                const loading = document.querySelector('.loading');
+                loading.style.display = 'block';
+
+                try {
+                    await fetch('https://r0c8kgwocscg8gsokogwwsw4.zetaverse.one/mongodb', {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': 'Bearer IhjtISImRdUQLJYTKZgVoB0cM773',
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            appSlug,
+                            action: 'delete',
+                            collection: 'leaderboard',
+                            conditions: { playerName }
+                        })
+                    });
+                    await showLeaderboard(currentGame); // Refresh leaderboard after deletion
+                } catch (error) {
+                    console.error('Error deleting player:', error);
+                } finally {
+                    loading.style.display = 'none';
+                }
+            } else {
+                alert('Admin only function');
+            }
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', async () => {
+            await loadExistingPlayers();
+            setupPlayerSuggestions('team1Players', 'team1Suggestions');
+            setupPlayerSuggestions('team2Players', 'team2Suggestions');
+            document.getElementById('scoreForm').addEventListener('submit', saveMatch);
+            showLeaderboard('FIFA');
+        });
+    </script>
+<script>document.body.addEventListener('wheel', e => { if (!e.ctrlKey) return; e.preventDefault(); return }, { passive: false })</script>
+	</body>
+</html>
